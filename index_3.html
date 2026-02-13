@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Revelador Pro — Fotografía Premium</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root{
+      /* Dinámica del foco (JS) */
+      --cursor-x: 50%;
+      --cursor-y: 50%;
+      --current-radius: 8px;
+
+      /* Sistema de tema (valores por defecto: midnight) */
+      --bg-color: #050505;
+      --text-color: rgba(255,255,255,.92);
+      --muted-color: rgba(255,255,255,.55);
+
+      --panel-bg: rgba(10,10,10,.42);
+      --panel-border: rgba(255,255,255,.10);
+      --panel-shadow: 0 12px 46px rgba(0,0,0,.58);
+
+      /* Acento en RGB separado (más cómodo para rgba) */
+      --accent-rgb: 214, 198, 165;
+
+      /* Ajustes “premium” */
+      --grain-opacity: .035;
+      --base-filter: grayscale(100%) brightness(40%) contrast(108%);
+
+      /* Glow (visible pero elegante) */
+      --glow-a: .18;
+      --glow-b: .06;
+    }
+
+    html, body{
+      width:100%;
+      height:100%;
+      margin:0;
+      padding:0;
+      overflow:hidden;
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select:none;
+      -webkit-user-select:none;
+    }
+
+    /* Stage */
+    .app{
+      position:relative;
+      width:100vw;
+      height:100vh;
+      overflow:hidden;
+      touch-action:none;
+      cursor:none;
+      background: var(--bg-color);
+    }
+
+    /* Capa base (oscura / B&N) */
+    .layer-base{
+      position:absolute;
+      inset:0;
+      z-index:1;
+      background-image: url('https://lh3.googleusercontent.com/pw/AP1GczNUMpUSaIHpGvGWnEMFMdVH6EBBhVwqI5a9CblCACWZ9NpvsxfTL7OujELcTglDVW6NynFUlMIwqUKZjy84A1gSz431YhyUyI2JTDCjhcy3CpMjpSTsqx1sDOXWDFOw-N_TPxOwUC7YBJNRWdPLe6d5IA=w854-h1518-s-no-gm?authuser=0');
+      background-size: cover;
+      background-position: center;
+      filter: var(--base-filter);
+      transform: translateZ(0);
+    }
+
+    /* Grano fino */
+    .grain{
+      position:absolute;
+      inset:0;
+      z-index:2;
+      pointer-events:none;
+      opacity: var(--grain-opacity);
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    /* Capa revelada (color) */
+    .layer-reveal{
+      position:absolute;
+      inset:0;
+      z-index:3;
+      pointer-events:none;
+      background-image: url('cristina_2.jpg');
+      background-size: cover;
+      background-position: center;
+
+      clip-path: circle(var(--current-radius) at var(--cursor-x) var(--cursor-y));
+      will-change: clip-path;
+      transform: translateZ(0);
+    }
+
+    /* Glow */
+    .glow{
+      position:absolute;
+      inset:0;
+      z-index:4;
+      pointer-events:none;
+      background: radial-gradient(
+        circle var(--current-radius) at var(--cursor-x) var(--cursor-y),
+        rgba(var(--accent-rgb), var(--glow-a)) 0%,
+        rgba(var(--accent-rgb), var(--glow-b)) 60%,
+        transparent 100%
+      );
+      transform: translateZ(0);
+    }
+
+    /* FX canvas (partículas ultra mínimas) */
+    #fx{
+      position:absolute;
+      inset:0;
+      z-index:5;
+      pointer-events:none;
+    }
+
+    /* Panel editorial */
+    .panel{
+      position:fixed;
+      left:50%;
+      top:max(18px, env(safe-area-inset-top));
+      transform:translateX(-50%);
+      z-index:50;
+      width:min(620px, calc(100vw - 24px));
+
+      background: var(--panel-bg);
+      border:1px solid var(--panel-border);
+      box-shadow: var(--panel-shadow);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 18px;
+
+      transition: all .55s cubic-bezier(.16,1,.3,1);
+    }
+    .panel.dim{
+      opacity:.12;
+      transform: translateX(-50%) translateY(-8px) scale(.985);
+    }
+
+    /* Botones sobrios */
+    .btn{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+
+      padding:12px 12px;
+      border-radius:14px;
+
+      color: var(--text-color);
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+
+      border:1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04);
+
+      transition: background .20s, border-color .20s, transform .18s, opacity .18s;
+    }
+    .btn:hover{
+      background: rgba(255,255,255,.07);
+      border-color: rgba(255,255,255,.12);
+    }
+    .btn:active{
+      transform: translateY(1px);
+    }
+
+    .label{
+      font-size:11px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color: var(--muted-color);
+      white-space:nowrap;
+    }
+
+    input[type="range"]{
+      -webkit-appearance:none;
+      width:100%;
+      background: transparent;
+    }
+    input[type="range"]::-webkit-slider-runnable-track{
+      height:2px;
+      background: rgba(255,255,255,.22);
+      border-radius: 2px;
+    }
+    input[type="range"]::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      height: 16px;
+      width: 16px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.94);
+      margin-top: -7px;
+      box-shadow: 0 0 0 4px rgba(var(--accent-rgb), .12), 0 10px 24px rgba(0,0,0,.45);
+      cursor:pointer;
+    }
+
+    /* Cursor pro (doble anillo) */
+    .cursor{
+      position:fixed;
+      left:var(--cursor-x);
+      top:var(--cursor-y);
+      transform: translate(-50%,-50%);
+      pointer-events:none;
+      z-index:999;
+      transition: opacity .18s;
+    }
+    .cursor.hidden{ opacity:0; }
+
+    .c-outer{
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.20);
+      background: rgba(var(--accent-rgb), .05);
+      transition: width .22s, height .22s, background .22s, border-color .22s, opacity .22s;
+      opacity:.92;
+      backdrop-filter: blur(2px);
+    }
+    .c-inner{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform: translate(-50%,-50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(var(--accent-rgb), .95);
+      box-shadow: 0 0 0 6px rgba(0,0,0,.18);
+      transition: opacity .22s, transform .22s;
+      opacity:.95;
+    }
+    .cursor.active .c-outer{
+      width: 64px;
+      height: 64px;
+      background: rgba(var(--accent-rgb), .09);
+      border-color: rgba(255,255,255,.26);
+    }
+
+    /* Micro-ayuda discreta */
+    .help{
+      position: fixed;
+      right: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 60;
+
+      display:flex;
+      align-items:center;
+      gap:10px;
+
+      padding: 10px 12px;
+      border-radius: 999px;
+
+      background: rgba(10,10,10,.32);
+      border:1px solid rgba(255,255,255,.10);
+      color: rgba(255,255,255,.58);
+      font-size: 12px;
+
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .kbd{
+      padding: 2px 8px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.70);
+      font-size: 11px;
+      letter-spacing:.02em;
+    }
+
+    /* Indicador de tema activo */
+    .btn[data-theme].is-active{
+      border-color: rgba(var(--accent-rgb), .45);
+      box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .10);
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .panel, .c-outer, .c-inner{ transition: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Cursor -->
+  <div class="cursor" id="cursor" aria-hidden="true">
+    <div class="c-outer"></div>
+    <div class="c-inner"></div>
+  </div>
+
+  <!-- Panel -->
+  <div class="panel p-4" id="ui">
+    <div class="flex gap-2">
+      <label class="btn flex-1 cursor-pointer">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Base
+        <input type="file" id="up-base" accept="image/*" class="hidden" />
+      </label>
+
+      <label class="btn flex-1 cursor-pointer">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Revelado
+        <input type="file" id="up-reveal" accept="image/*" class="hidden" />
+      </label>
+
+      <button class="btn" id="reset" title="Reset (Esc)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>
+        </svg>
+        Reset
+      </button>
+    </div>
+
+    <div class="mt-4 grid grid-cols-[auto,1fr,auto] gap-3 items-center px-1">
+      <div class="label">Apertura</div>
+      <input type="range" id="aperture" min="60" max="420" value="260" />
+      <div class="label" id="apertureVal">260</div>
+    </div>
+
+    <div class="mt-3 grid grid-cols-[auto,1fr] gap-3 items-center px-1">
+      <div class="label">Tema</div>
+      <div class="flex gap-2">
+        <button class="btn flex-1" data-theme="midnight" title="Midnight">Midnight</button>
+        <button class="btn flex-1" data-theme="champagne" title="Champagne">Champagne</button>
+        <button class="btn flex-1" data-theme="mono" title="Monocromo">Mono</button>
+        <button class="btn flex-1" data-theme="tech" title="Tech">Tech</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Micro-ayuda (discreta) -->
+  <div class="help" id="help">
+    <span>Click/tap: <strong style="color: rgba(255,255,255,.78)">bloquear</strong></span>
+    <span class="kbd">ESC</span>
+  </div>
+
+  <!-- Stage -->
+  <div class="app" id="stage" role="application" aria-label="Revelador Pro">
+    <div class="layer-base" id="base"></div>
+    <div class="grain"></div>
+    <div class="layer-reveal" id="reveal"></div>
+    <div class="glow"></div>
+    <canvas id="fx"></canvas>
+  </div>
+
+  <script>
+    // ====== THEMES ======
+    const THEMES = {
+      midnight: {
+        "--bg-color": "#050505",
+        "--text-color": "rgba(255,255,255,.92)",
+        "--muted-color": "rgba(255,255,255,.55)",
+        "--panel-bg": "rgba(10,10,10,.42)",
+        "--panel-border": "rgba(255,255,255,.10)",
+        "--panel-shadow": "0 12px 46px rgba(0,0,0,.58)",
+        "--accent-rgb": "214, 198, 165",
+        "--grain-opacity": ".035",
+        "--base-filter": "grayscale(100%) brightness(36%) contrast(125%)",
+        "--glow-a": ".18",
+        "--glow-b": ".06"
+      },
+      champagne: {
+        "--bg-color": "#050505",
+        "--text-color": "rgba(255,255,255,.92)",
+        "--muted-color": "rgba(255,255,255,.55)",
+        "--panel-bg": "rgba(10,10,10,.38)",
+        "--panel-border": "rgba(255,255,255,.10)",
+        "--panel-shadow": "0 12px 46px rgba(0,0,0,.58)",
+        "--accent-rgb": "214, 198, 165",
+        "--grain-opacity": ".040",
+        "--base-filter": "sepia(10%) saturate(90%) brightness(50%) contrast(92%)",
+        "--glow-a": ".20",
+        "--glow-b": ".07"
+      },
+      mono: {
+        "--bg-color": "#050505",
+        "--text-color": "rgba(255,255,255,.92)",
+        "--muted-color": "rgba(255,255,255,.55)",
+        "--panel-bg": "rgba(10,10,10,.40)",
+        "--panel-border": "rgba(255,255,255,.10)",
+        "--panel-shadow": "0 12px 46px rgba(0,0,0,.58)",
+        "--accent-rgb": "255, 255, 255",
+        "--grain-opacity": ".032",
+        "--base-filter": "grayscale(100%) brightness(44%) contrast(110%)",
+        "--glow-a": ".14",
+        "--glow-b": ".05"
+      },
+      tech: {
+        "--bg-color": "#050505",
+        "--text-color": "rgba(255,255,255,.92)",
+        "--muted-color": "rgba(255,255,255,.55)",
+        "--panel-bg": "rgba(10,10,10,.40)",
+        "--panel-border": "rgba(255,255,255,.10)",
+        "--panel-shadow": "0 12px 46px rgba(0,0,0,.58)",
+        "--accent-rgb": "139, 159, 255",
+        "--grain-opacity": ".035",
+        "--base-filter": "hue-rotate(200deg) saturate(160%) brightness(40%) contrast(130%)",
+        "--glow-a": ".18",
+        "--glow-b": ".06"
+      }
+    };
+
+    function applyTheme(name){
+      const t = THEMES[name] ?? THEMES.midnight;
+      for (const [k,v] of Object.entries(t)) {
+        document.documentElement.style.setProperty(k, v);
+      }
+      document.querySelectorAll("[data-theme]").forEach(b => b.classList.toggle("is-active", b.dataset.theme === name));
+      // Persistencia opcional
+      try { localStorage.setItem("revelador_theme", name); } catch {}
+    }
+
+    // ====== APP ======
+    const stage = document.getElementById('stage');
+    const base = document.getElementById('base');
+    const reveal = document.getElementById('reveal');
+    const ui = document.getElementById('ui');
+    const cursor = document.getElementById('cursor');
+
+    const canvas = document.getElementById('fx');
+    const ctx = canvas.getContext('2d');
+
+    const aperture = document.getElementById('aperture');
+    const apertureVal = document.getElementById('apertureVal');
+    const resetBtn = document.getElementById('reset');
+
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+
+    const state = {
+      targetX: innerWidth / 2,
+      targetY: innerHeight / 2,
+      x: innerWidth / 2,
+      y: innerHeight / 2,
+
+      minRadius: 8,
+      maxRadius: parseInt(aperture.value, 10),
+      r: 8,
+
+      pressed: false,
+      locked: false,
+
+      particles: [],
+      particleGate: 0.95,
+
+      lastTapTime: 0
+    };
+
+    function resize(){
+      const dpr = devicePixelRatio || 1;
+      canvas.width = Math.floor(innerWidth * dpr);
+      canvas.height = Math.floor(innerHeight * dpr);
+      canvas.style.width = innerWidth + 'px';
+      canvas.style.height = innerHeight + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    addEventListener('resize', resize, { passive: true });
+    resize();
+
+    const lerp = (a,b,t) => a + (b-a) * t;
+
+    class Particle {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 1.2;
+        this.vy = (Math.random() - 0.5) * 1.2;
+        this.size = Math.random() * 1.6 + 0.4;
+        this.life = 1;
+        this.decay = Math.random() * 0.018 + 0.008;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= this.decay;
+      }
+      draw() {
+        ctx.fillStyle = `rgba(255,255,255,${this.life * 0.35})`;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function setVars(){
+      stage.style.setProperty('--cursor-x', `${state.x}px`);
+      stage.style.setProperty('--cursor-y', `${state.y}px`);
+      stage.style.setProperty('--current-radius', `${state.r}px`);
+    }
+
+    function animate(){
+      const posT = prefersReducedMotion ? 1 : 0.085;
+      const radT = prefersReducedMotion ? 1 : 0.075;
+
+      state.x = lerp(state.x, state.targetX, posT);
+      state.y = lerp(state.y, state.targetY, posT);
+
+      const targetR = (state.pressed || state.locked) ? state.maxRadius : state.minRadius;
+      state.r = lerp(state.r, targetR, radT);
+
+      setVars();
+
+      ui.classList.toggle('dim', state.r > (state.minRadius + 28));
+      cursor.classList.toggle('active', state.pressed || state.locked);
+
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+
+      if (!prefersReducedMotion && state.r > 18 && Math.random() > state.particleGate) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * state.r;
+        state.particles.push(new Particle(
+          state.x + Math.cos(angle) * dist,
+          state.y + Math.sin(angle) * dist
+        ));
+      }
+
+      for (let i = 0; i < state.particles.length; i++) {
+        const p = state.particles[i];
+        p.update();
+        p.draw();
+      }
+      if (state.particles.length) {
+        state.particles = state.particles.filter(p => p.life > 0);
+      }
+
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    function updatePos(e){
+      state.targetX = e.clientX;
+      state.targetY = e.clientY;
+    }
+
+    stage.addEventListener('pointermove', (e) => updatePos(e), { passive: true });
+
+    stage.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.panel')) return;
+
+      if (e.pointerType !== 'mouse') cursor.classList.add('hidden');
+      else cursor.classList.remove('hidden');
+
+      state.pressed = true;
+      updatePos(e);
+
+      stage.setPointerCapture?.(e.pointerId);
+    }, { passive: true });
+
+    stage.addEventListener('pointerup', (e) => {
+      if (e.target.closest('.panel')) return;
+
+      const now = performance.now();
+      const dt = now - state.lastTapTime;
+      state.lastTapTime = now;
+
+      if (e.pointerType === 'mouse') {
+        state.locked = !state.locked;
+      } else {
+        if (!state.locked) {
+          state.locked = true;
+        } else {
+          if (dt < 260) state.locked = false;
+        }
+      }
+
+      state.pressed = false;
+    }, { passive: true });
+
+    stage.addEventListener('pointercancel', () => { state.pressed = false; }, { passive: true });
+
+    aperture.addEventListener('input', (e) => {
+      state.maxRadius = parseInt(e.target.value, 10);
+      apertureVal.textContent = state.maxRadius;
+    }, { passive: true });
+    apertureVal.textContent = aperture.value;
+
+    document.querySelectorAll('[data-theme]').forEach(btn => {
+      btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+    });
+
+    function reset(){
+      state.locked = false;
+      state.pressed = false;
+      state.targetX = innerWidth / 2;
+      state.targetY = innerHeight / 2;
+    }
+    resetBtn.addEventListener('click', reset);
+    addEventListener('keydown', (e) => { if (e.key === 'Escape') reset(); });
+
+    function setupFile(inputId, targetEl) {
+      const input = document.getElementById(inputId);
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          targetEl.style.backgroundImage = `url('${ev.target.result}')`;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    setupFile('up-base', base);
+    setupFile('up-reveal', reveal);
+
+    // Tema inicial (persistente)
+    let initialTheme = "midnight";
+    try {
+      const saved = localStorage.getItem("revelador_theme");
+      if (saved && THEMES[saved]) initialTheme = saved;
+    } catch {}
+    applyTheme(initialTheme);
+  </script>
+</body>
+</html>
